@@ -1,0 +1,141 @@
+name: 'gha-svu'
+author: 'bencatlab'
+branding:
+  icon: 'settings'
+  color: 'orange'
+description: 'Calculate semantic versions using SVU v3+ (https://github.com/caarlos0/svu)'
+
+inputs:
+  always:
+    description: 'If no commits trigger a version change, increment the patch (true/false)'
+    default: 'false'
+    required: false
+  command:
+    description: 'SVU subcommand to run: current, next, major, minor, patch, prerelease'
+    default: 'next'
+    required: false
+  initial-version:
+    description: 'Initial version to use when no tags are present (v0)'
+    default: ''
+    required: false
+  log-directory:
+    description: 'Only use commits that changed files in the given directories'
+    default: ''
+    required: false
+  metadata:
+    description: 'Metadata to append to the version (e.g. "+build.42")'
+    default: ''
+    required: false
+  prerelease:
+    description: 'Prerelease identifier (e.g. "alpha", "beta")'
+    default: ''
+    required: false
+  push-tag:
+    description: 'Push the new tag to the remote (true/false)'
+    default: 'false'
+    required: false
+  svu-version:
+    description: 'SVU version to install (e.g. "v3.2.3"). Leave blank to install latest'
+    default: ''
+    required: false
+  tag-mode:
+    description: 'Which tags to consider: all, light, heavy'
+    default: 'all'
+    required: false
+  tag-pattern:
+    description: 'Regex to ignore tags that do not match the given pattern'
+    default: ''
+    required: false
+  tag-prefix:
+    description: 'Tag prefix (e.g. "v")'
+    default: 'v'
+    required: false
+  verbose:
+    description: 'Enable verbose SVU output (true/false)'
+    default: 'false'
+    required: false
+
+outputs:
+  changed:
+    description: 'Whether the version has changed (true/false)'
+    value: ${{ steps.svu.outputs.changed }}
+  current:
+    description: 'Current semantic version based on existing tags'
+    value: ${{ steps.svu.outputs.current }}
+  next:
+    description: 'Next semantic version calculated by SVU'
+    value: ${{ steps.svu.outputs.next }}
+
+runs:
+  using: composite
+  steps:
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: 'stable'
+
+    - name: Install SVU (min v3)
+      shell: bash
+      run: |
+        MIN_MAJOR=3
+        VERSION="${{ inputs.svu-version }}"
+
+        if [[ -n "$VERSION" ]]; then
+          RAW="${VERSION#v}"
+          MAJOR="${RAW%%.*}"
+          if (( MAJOR < MIN_MAJOR )); then
+            echo "::error::Specified SVU version '$VERSION' is below minimum v${MIN_MAJOR}.0.0"
+            exit 1
+          fi
+          go install github.com/caarlos0/svu/v3@$VERSION
+        else
+          go install github.com/caarlos0/svu/v3@latest
+        fi
+
+    - name: Calculate versions
+      id: svu
+      shell: bash
+      run: |
+        # Get current version
+        CURRENT=$(svu current \
+          --tag.mode="${{ inputs.tag-mode }}" \
+          $( [[ -n "${{ inputs.tag-pattern }}" ]] && echo "--tag.pattern=${{ inputs.tag-pattern }}" ) \
+          --tag.prefix="${{ inputs.tag-prefix }}" \
+          $( [[ "${{ inputs.verbose }}" == 'true' ]] && echo "--verbose" )
+        )
+        echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+
+        # If command is current, output and exit
+        if [[ "${{ inputs.command }}" == 'current' ]]; then
+          echo "next=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # Build SVU args for next bump
+        ARGS=( "${{ inputs.command }}" )
+        ARGS+=( --always="${{ inputs.always }}" )
+        [[ -n "${{ inputs.log-directory }}" ]] && ARGS+=( --log.directory="${{ inputs.log-directory }}" )
+        [[ -n "${{ inputs.metadata }}" ]] && ARGS+=( --metadata="${{ inputs.metadata }}" )
+        [[ -n "${{ inputs.prerelease }}" ]] && ARGS+=( --prerelease="${{ inputs.prerelease }}" )
+        [[ -n "${{ inputs.initial-version }}" ]] && ARGS+=( --v0="${{ inputs.initial-version }}" )
+        ARGS+=( --tag.mode="${{ inputs.tag-mode }}" )
+        [[ -n "${{ inputs.tag-pattern }}" ]] && ARGS+=( --tag.pattern="${{ inputs.tag-pattern }}" )
+        ARGS+=( --tag.prefix="${{ inputs.tag-prefix }}" )
+        [[ "${{ inputs.verbose }}" == 'true' ]] && ARGS+=( --verbose )
+
+        # Execute SVU next command
+        NEXT=$(svu "${ARGS[@]}")
+        echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+
+        # Determine if version changed
+        if [[ "$NEXT" == "$CURRENT" ]]; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          if [[ "${{ inputs.push-tag }}" == 'true' ]]; then
+            git tag "$NEXT"
+            git push --tags
+          fi
+        fi

@@ -1,0 +1,37 @@
+name: Publish
+
+on:
+  pull_request_target:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.merged == true }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version
+        id: semver
+        uses: ./
+        with:
+          push-tag: true
+
+      - name: Generate Changelog
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v5.3.0
+        with:
+          owner: bencatlab
+          fromTag: ${{ steps.semver.outputs.current }}
+          toTag: ${{ steps.semver.outputs.next }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Github Release
+        uses: softprops/action-gh-release@v2.2.2
+        with:
+          body_path: ${{ steps.changelog.outputs.changelog }}-CHANGELOG.txt
+          token: ${{ secrets.GITHUB_TOKEN }}
