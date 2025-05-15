@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  publish:
+  check-pr:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,10 +17,14 @@ jobs:
         id: semver
         uses: ./
         with:
+          always: true
+          push-tag: false
           verbose: true
 
-      - name: Generate Changelog
+      - name: Outputs
         run: |
           echo "changed: ${{ steps.semver.outputs.changed }}"
           echo "current: ${{ steps.semver.outputs.current }}"
           echo "next: ${{ steps.semver.outputs.next }}"
+          release=$(echo "${{ steps.semver.outputs.next }}" | cut -d. -f1)
+          echo "release: $release"

@@ -19,7 +19,9 @@ jobs:
         id: semver
         uses: ./
         with:
+          always: true
           push-tag: true
+          verbose: true
 
       - name: Generate Changelog
         id: changelog
@@ -34,4 +36,15 @@ jobs:
         uses: softprops/action-gh-release@v2.2.2
         with:
           body_path: ${{ steps.changelog.outputs.changelog }}-CHANGELOG.txt
+          tag_name: ${{ steps.semver.outputs.next }}
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Handle Release Tag
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+          MAJOR=$(echo "${{ steps.semver.outputs.next }}" | cut -d. -f1)
+
+          git tag -f $MAJOR ${{ steps.semver.outputs.next }}
+          git push --force origin v$MAJOR
