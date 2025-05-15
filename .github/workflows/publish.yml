@@ -19,7 +19,9 @@ jobs:
         id: semver
         uses: ./
         with:
+          always: true
           push-tag: true
+          verbose: true
 
       - name: Generate Changelog
         id: changelog
