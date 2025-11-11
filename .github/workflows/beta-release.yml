@@ -1,0 +1,41 @@
+name: Beta Release
+
+on:
+  push:
+    branches:
+      - develop
+      - beta/*
+  workflow_dispatch:
+
+jobs:
+  beta-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create Beta Version
+        id: beta
+        uses: ./
+        with:
+          command: 'prerelease'
+          prerelease: 'beta'
+          push-tag: 'true'
+          verbose: 'true'
+
+      - name: Output version info
+        run: |
+          echo "Changed: ${{ steps.beta.outputs.changed }}"
+          echo "Current: ${{ steps.beta.outputs.current }}"
+          echo "Next: ${{ steps.beta.outputs.next }}"
+
+      - name: Create Pre-release
+        if: steps.beta.outputs.changed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.beta.outputs.next }}
+          prerelease: true
+          generate_release_notes: true
+          name: ${{ steps.beta.outputs.next }} (Beta)

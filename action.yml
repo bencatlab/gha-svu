@@ -125,7 +125,7 @@ runs:
         ARGS+=( --tag.prefix="${{ inputs.tag-prefix }}" )
         [[ "${{ inputs.verbose }}" == 'true' ]] && ARGS+=( --verbose )
 
-        # Execute SVU next command
+        # Execute SVU command
         NEXT=$(svu "${ARGS[@]}")
         echo "next=$NEXT" >> "$GITHUB_OUTPUT"
 
