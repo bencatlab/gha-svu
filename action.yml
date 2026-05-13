@@ -7,7 +7,7 @@ description: 'Calculate semantic versions using SVU v3+ (https://github.com/caar
 
 inputs:
   always:
-    description: 'If no commits trigger a version change, increment the patch (true/false)'
+    description: 'Only applied when command=next. If no commits trigger a version change, increment the patch (true/false)'
     default: 'false'
     required: false
   command:
@@ -15,7 +15,7 @@ inputs:
     default: 'next'
     required: false
   initial-version:
-    description: 'Initial version to use when no tags are present (v0)'
+    description: 'Only applied when command=next. Initial version to use when no tags are present (v0)'
     default: ''
     required: false
   log-directory:
@@ -115,11 +115,15 @@ runs:
 
         # Build SVU args for next bump
         ARGS=( "${{ inputs.command }}" )
-        ARGS+=( --always="${{ inputs.always }}" )
+        # --always and --v0 are only supported by `svu next`; other subcommands
+        # (patch/minor/major/prerelease) reject them as unknown flags.
+        if [[ "${{ inputs.command }}" == 'next' ]]; then
+          ARGS+=( --always="${{ inputs.always }}" )
+          [[ -n "${{ inputs.initial-version }}" ]] && ARGS+=( --v0="${{ inputs.initial-version }}" )
+        fi
         [[ -n "${{ inputs.log-directory }}" ]] && ARGS+=( --log.directory="${{ inputs.log-directory }}" )
         [[ -n "${{ inputs.metadata }}" ]] && ARGS+=( --metadata="${{ inputs.metadata }}" )
         [[ -n "${{ inputs.prerelease }}" ]] && ARGS+=( --prerelease="${{ inputs.prerelease }}" )
-        [[ -n "${{ inputs.initial-version }}" ]] && ARGS+=( --v0="${{ inputs.initial-version }}" )
         ARGS+=( --tag.mode="${{ inputs.tag-mode }}" )
         [[ -n "${{ inputs.tag-pattern }}" ]] && ARGS+=( --tag.pattern="${{ inputs.tag-pattern }}" )
         ARGS+=( --tag.prefix="${{ inputs.tag-prefix }}" )
