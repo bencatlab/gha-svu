@@ -35,7 +35,7 @@ jobs:
       - name: Github Release
         uses: softprops/action-gh-release@v2.2.2
         with:
-          body_path: ${{ steps.changelog.outputs.changelog }}-CHANGELOG.txt
+          body: ${{ steps.changelog.outputs.changelog }}
           tag_name: ${{ steps.semver.outputs.next }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
